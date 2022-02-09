@@ -22,7 +22,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
 
   # Remove "desktop" from the args below if only accessing via SSH
   # Remove "mosrs" from the args below if not accessing the Met Office Science Repository Service
-  config.vm.provision :shell, path: "install.sh", args: "ubuntu 1804 desktop mosrs x2go"
+  config.vm.provision :shell, path: "install.sh", args: "ubuntu 1804 desktop mosrs aws x2go nvidia"
   config.ssh.forward_x11 = true
 
   # workaround to prevent use of SMB shared folders
@@ -58,7 +58,9 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
     # larger VM, e.g. Intel Xeon 2xCPU/8GB RAM
     #aws.instance_type = "m5.large"
     # can change disk size independent of instance type. Free tier up to 30GB.
-    aws.block_device_mapping = [{ 'DeviceName' => '/dev/sda1', 'Ebs.VolumeSize' => 30 }]
+    #aws.block_device_mapping = [{ 'DeviceName' => '/dev/sda1', 'Ebs.VolumeSize' => 30 }]
+    # if using the NVIDIA compiler, increase to a minimum of 50GB
+    aws.block_device_mapping = [{ 'DeviceName' => '/dev/sda1', 'Ebs.VolumeSize' => 50 }]
 
     # use dummy box
     override.vm.box = "dummy"
