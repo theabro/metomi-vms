@@ -250,6 +250,4 @@ If you stop the instance and then later restart it, the IP address may change. Y
 
 ### Using the NVIDIA Compiler
 
-It is possible to use the NVIDIA compiler instead of the GNU compiler on the VM. When run on EC2 instances with accelerated hardware (such as g4dn) you will be able to use the GPU. To install the NVIDIA HPC SDK you should follow the instructions from here
-* https://developer.nvidia.com/hpc-sdk
-It is recommended to install version 22.1. You should include the entry "nvidia" as an arg passed to `config.vm.provision` in the AWS Vagrantfile. This will install some additional packages.
+It is possible to use the NVIDIA compiler instead of the GNU compiler on the VM. When run on EC2 instances with accelerated hardware (such as g4dn) you will be able to use the GPU. To install the NVIDIA HPC SDK you should [follow the instructions here](https://developer.nvidia.com/hpc-sdk), and it is recommended to install version 22.1 for the VM. You should include the entry "nvidia" as an arg passed to `config.vm.provision` in the AWS Vagrantfile. This will install some additional packages.
