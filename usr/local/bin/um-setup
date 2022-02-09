@@ -169,6 +169,17 @@ fi
 echo '~/.metomi/rose.conf settings updated.'
 echo
 
+##### Check if NVIDIA HPC SDK is available #####
+
+compilers="gfortran"
+group="all"
+# check if we have the NVIDIA HPC SDK module available
+# if so, GCOM & shumlib will compile against it
+if [[ -d /opt/nvidia/hpc_sdk/modulefiles ]]; then
+    compilers+=" nvidia"
+    group+=",nvidia"
+fi
+
 ##### Install GCOM #####
 
 tmpdir=$(mktemp -d)
@@ -185,7 +196,7 @@ echo "Installing GCOM from: $gcom_src"
 cd $tmpdir/wc
 echo "Running rose stem to build GCOM..."
 
-rose stem --quiet --group=all --name=gcom_install --new --no-gcontrol -- --no-detach
+rose stem --quiet --group=${group} --name=gcom_install --new --no-gcontrol -- --no-detach
 if [ $? -ne 0 ]; then
   echo "Problem running GCOM rose stem suite."
   echo "Check suite logs and output at $HOME/cylc-run/gcom_install"
@@ -198,25 +209,31 @@ echo "Suite output at http://localhost/cylc-review/taskjobs/$USER?&suite=gcom_in
 gdir="$HOME/umdir/gcom"
 cdir="$HOME/cylc-run/gcom_install/work"
 
+rm -rf $gdir/$vn  # Remove any existing installation
 cd $cdir
 prefix="gcom_rosestem"
-mpichdir="vm_gfortran_mpich3/build"
-serialdir="vm_gfortran_serial/build"
-serial32dir="vm32B_gfortran_serial/build"
-if [ -d "$prefix$mpichdir" ] || [ -d "$prefix$serialdir" ] || [ -d "$prefix$serial32dir" ]; then
-  echo "Found one or more GCOM build directories to install"
-else
-  echo "Cannot find a GCOM build in $cdir"
-  exit 1
-fi
 
-rm -rf $gdir/$vn  # Remove any existing installation
-mkdir -p $gdir/$vn/$mpichdir
-mkdir -p $gdir/$vn/$serialdir
-mkdir -p $gdir/$vn/$serial32dir
-cp -r $prefix$mpichdir/* $gdir/$vn/$mpichdir || echo "Failed to install parallel GCOM library"
-cp -r $prefix$serialdir/* $gdir/$vn/$serialdir || echo "Failed to install serial GCOM library"
-cp -r $prefix$serial32dir/* $gdir/$vn/$serial32dir || echo "Failed to install 32-bit serial GCOM library"
+# loop over available compilers
+for comp in $compilers; do
+    
+    mpichdir="vm_${comp}_mpich3/build"
+    serialdir="vm_${comp}_serial/build"
+    serial32dir="vm32B_${comp}_serial/build"
+    if [ -d "$prefix$mpichdir" ] || [ -d "$prefix$serialdir" ] || [ -d "$prefix$serial32dir" ]; then
+	echo "Found one or more GCOM build directories to install"
+    else
+	echo "Cannot find a GCOM build in $cdir"
+	exit 1
+    fi
+    
+    mkdir -p $gdir/$vn/$mpichdir
+    mkdir -p $gdir/$vn/$serialdir
+    mkdir -p $gdir/$vn/$serial32dir
+    cp -r $prefix$mpichdir/* $gdir/$vn/$mpichdir || echo "Failed to install parallel GCOM library"
+    cp -r $prefix$serialdir/* $gdir/$vn/$serialdir || echo "Failed to install serial GCOM library"
+    cp -r $prefix$serial32dir/* $gdir/$vn/$serial32dir || echo "Failed to install 32-bit serial GCOM library"
+
+done
 
 # set up symlink 'default' in case there are multiple other installs
 cd $gdir
@@ -245,51 +262,72 @@ echo "Installing Shumlib from: $shumlib_src"
 mkdir -p $HOME/umdir/shumlib
 
 cd $tmpdir/wc
-vm_config='vm-x86-gfortran-gcc'
+
+# NVIDIA compiler cannot cope with the shum_fieldsfile_class,
+# so remove it from the compile list
+nv_test_list=$(ls -d shum_* | awk -F\/ '{print $NF}' | grep -v shum_fieldsfile_class | xargs)
+
 echo "Building Shumlib dependencies"
 
-# shumlib is built twice, with and without OpenMP:
-for shum_omp in true false; do
+for comp in $compilers; do
+    
+    vm_config="vm-x86-${comp}-gcc"
 
-  if $shum_omp; then
-    omp=openmp
-  else
-    omp=no-openmp
-  fi
-
-  install_dir="$HOME/umdir/shumlib/$vn/$vm_config/$omp"
-  mkdir -p "$install_dir"
-
-
-  # Remove any previous builds
-  make -f make/${vm_config}.mk clean > /dev/null 2>&1 
-
-  # Build the library
-  echo
-  echo "Building Shumlib $omp library..."
-  echo "Make output at $install_dir/make.log"
-  SHUM_OPENMP=$shum_omp make -f make/${vm_config}.mk &> "$install_dir/make.log"
-  if [ $? -ne 0 ]; then
-    echo "Shumlib $omp build failed."
-    exit 1
-  else
-    echo "Shumlib $omp build completed successfully."
-  fi
-
-  # Test the library
-  echo "Testing Shumlib $omp library..."
-  echo "Test output at $install_dir/test.log"
-  SHUM_OPENMP=$shum_omp make -f make/${vm_config}.mk test &> "$install_dir/test.log"
-  if [ $? -ne 0 ]; then
-    echo "Shumlib $omp tests failed."
-    exit 1
-  else
-    echo "Shumlib $omp built-in tests passed."
-  fi
-
-  # Copy the library to UMDIR
-  cp -r $tmpdir/wc/build/$vm_config/* $install_dir || echo "Failed to install Shumlib $omp library"
+    if [[ "${comp}" == "nvidia" ]]; then
+	module purge
+	module use /opt/nvidia/hpc_sdk/modulefiles
+	module load nvhpc
+	module list 2&>1
+	test_list="$nv_test_list"
+    else
+	# empty list means compile everything
+	test_list=""
+    fi
+    
+    # shumlib is built twice, with and without OpenMP:
+    for shum_omp in true false; do
+	
+	if $shum_omp; then
+	    omp=openmp
+	else
+	    omp=no-openmp
+	fi
+		
+	install_dir="$HOME/umdir/shumlib/$vn/$vm_config/$omp"
+	mkdir -p "$install_dir"
+	
+	# Remove any previous builds
+	make -f make/${vm_config}.mk clean > /dev/null 2>&1 
+	
+	# Build the library
+	echo
+	echo "Building Shumlib $omp library..."
+	echo "Make output at $install_dir/make.log"
+	SHUM_OPENMP=$shum_omp make -f make/${vm_config}.mk ${test_list} &> "$install_dir/make.log"
+	if [ $? -ne 0 ]; then
+	    echo "Shumlib $omp build failed."
+	    exit 1
+	else
+	    echo "Shumlib $omp build completed successfully."
+	fi
+	
+	# Test the library
+	echo "Testing Shumlib $omp library..."
+	echo "Test output at $install_dir/test.log"
+	SHUM_OPENMP=$shum_omp make -f make/${vm_config}.mk test &> "$install_dir/test.log"
+	if [ $? -ne 0 ]; then
+	    echo "Shumlib $omp tests failed."
+	    exit 1
+	else
+	    echo "Shumlib $omp built-in tests passed."
+	fi
+	
+	# Copy the library to UMDIR
+	cp -r $tmpdir/wc/build/$vm_config/* $install_dir || echo "Failed to install Shumlib $omp library"
+    done
+    
 done
+
 
 # Set the symlink
 cd $HOME/umdir/shumlib
