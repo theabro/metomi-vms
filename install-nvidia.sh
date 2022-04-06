@@ -1,5 +1,9 @@
 #### Install necessary additions for running with the NVIDIA HPC SDK - only do for Ubuntu 18.04
 
+# NOTE: to install the NVIDIA HPC SDK, follow the instructions here:
+#       https://developer.nvidia.com/nvidia-hpc-sdk-downloads
+#       It is recommended to install version 22.1.
+
 if [[ $dist == ubuntu ]]; then
   if [[ $release == 1804 ]]; then
 
@@ -16,10 +20,13 @@ if [[ $dist == ubuntu ]]; then
     dpkg -i "$TMPDEB" || error
     rm -f "$TMPDEB" || error
 
+    # add-in required text to make the NVHPC modulefile available
+    cat >> /home/$(logname)/.bashrc <<EOF
+# load nvhpc modules if available
+if [[ -d /opt/nvidia/hpc_sdk/modulefiles ]]; then
+        export MODULEPATH=$MODULEPATH:/opt/nvidia/hpc_sdk/modulefiles
+fi
+EOF || error
 
-    apt-get install -q -y software-properties-common || error
-    add-apt-repository -y ppa:x2go/stable || error
-    apt-get -q -y update || error
-    apt-get install -q -y x2goserver x2goserver-xsession x2golxdebindings || error
   fi
 fi
