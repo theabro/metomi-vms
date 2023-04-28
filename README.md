@@ -13,6 +13,8 @@ Table of contents:
 * [Optional Windows Software](#optional-windows-software)
   * [Git BASH](#git-bash)
   * [Cygwin](#cygwin)
+* [VMware](#vmware)
+* [libvirt](#libvirt)
 * [Troubleshooting](#troubleshooting)
 * [Amazon AWS](doc/README_AWS.md)
 * [Microsoft Azure](doc/README_Azure.md)
@@ -21,6 +23,7 @@ Table of contents:
 
 In order to use a virtual machine (VM), you must first install:
  * [VirtualBox](https://www.virtualbox.org/), software that enables running of virtual machines (version 5.1.x or later required).
+   * As an alternative, [VMware Workstation Player](https://www.vmware.com/uk/products/workstation-player.html) (version 16 or later) or [VMware Fusion Player](https://www.vmware.com/uk/products/fusion.html) (version 12 or later) can also be used to run the virtual machine. See the [VMware section](#vmware) for further information.
  * [Vagrant](https://www.vagrantup.com/), software that allows easy configuration of virtual machines (version 2.0.x or later required).
 
 These applications provide point-and-click installers for Windows and can usually be installed via the package manager on Linux systems.
@@ -80,7 +83,7 @@ To shutdown the VM you can either run the command `sudo shutdown -h now` from wi
 
 ## Using other Virtual Machines
 
-In addition to the default VM, additional VMs are supported in separate files named `Vagrantfile.<distribution>`, e.g. `Vagrantfile.centos-6`.
+In addition to the default VM, additional VMs are supported in separate files named `Vagrantfile.<distribution>`, e.g. `Vagrantfile.centos-7`.
 These other VMs are provided primarily for the purpose of testing FCM, Rose & Cylc on other Linux distributions and providing a reference install on these platforms.
 Note that they are not as well tested as the default VM and may not include a desktop environment.
 
@@ -110,6 +113,47 @@ Then, instead of using a normal command window for launching the VM, you should 
 In Cygwin-X terminals, you can use many common Unix commands (e.g. cd, ls).
 Firstly run the command  `cd /cygdrive` followed by `ls` and you should see your Windows drives.
 Then use the `cd` command to navigate to the directory where you have extracted the setup files (e.g. `c/Users/User/metomi-vms-master`).
+
+## VMware
+
+As an alternative to VirtualBox, [VMware Workstation Player](https://www.vmware.com/uk/products/workstation-player.html) (Windows, Linux) or ([VMware Fusion Player](https://www.vmware.com/uk/products/fusion.html) (macOS) can be used to host the virtual machine. VMware Workstation Player is free for non-commercial use and VMware Fusion Player is free with a Personal Use License.
+
+You will need to download and install
+
+* [VMware Workstation Player](https://www.vmware.com/uk/products/workstation-player.html) (version 16 or later) **or** [VMware Fusion Player](https://www.vmware.com/uk/products/fusion.html) (version 12 or later)
+* The [Vagrant VMware utility](https://www.vagrantup.com/vmware/downloads)
+* The Vagrant VMware plugin by running the command `vagrant plugin install vagrant-vmware-desktop`
+
+The configuration settings can be found in the [Vagrantfile.vmware_ubuntu-1804](Vagrantfile.vmware_ubuntu-1804) file. To bring the box up using VMware, you should [set your VAGRANT_VAGRANTFILE](#using-other-virtual-machines) to `Vagrantfile.vmware_ubuntu-1804` before running the command
+```
+vagrant up --provider=vmware_desktop
+```
+You may have issues if both VMware and VirtualBox are installed, or if the Hyper-V hypervisor is also running. If you are using an Apple Silicon device with VMware Fusion you will need to set the following
+```
+config.vm.box = "uwbbi/bionic-arm64"
+```
+in the [Vagrantfile.vmware_ubuntu-1804](Vagrantfile.vmware_ubuntu-1804) file as you cannot use an amd64-based installation on Apple Silicon (ARM-based) hardware.
+
+## libvirt
+
+Another alternative to VirtualBox and VMware is to use the [libvirt virtualisation API](https://libvirt.org/index.html), which also has a [Vagrant plugin](https://vagrant-libvirt.github.io/vagrant-libvirt/). You will need to install libvirt on your host system. You should [set your VAGRANT_VAGRANTFILE](#using-other-virtual-machines) to [Vagrantfile.libvirt_ubuntu-1804](Vagrantfile.libvirt_ubuntu-1804) before running the command
+```
+vagrant up --provider=libvirt
+```
+to provision the VM. The current [Vagrantfile](Vagrantfile.libvirt_ubuntu-1804) has been used on a GNU/Linux host without a graphical login.
+
+The advantage of this method is that it allows for PCI passthrough, allowing the guest OS to directly access hardware on the host, for instance allowing the guest to access a GPU on the host machine. On a GNU/Linux system you can use the `lspci -v` command to determine the device information, and then include a block such as this within the `config.vm.provider` section of the [Vagrantfile.libvirt_ubuntu-1804](Vagrantfile.libvirt_ubuntu-1804) file:
+```
+    # VGA controller on 65:00.0
+    v.pci :domain => '0x0000', :bus => '0x65', :slot => '0x00', :function => '0x0'
+    # Audio controller on 65:00.1
+    v.pci :domain => '0x0000', :bus => '0x65', :slot => '0x00', :function => '0x1'
+    # USB controller on 65:00.2
+    v.pci :domain => '0x0000', :bus => '0x65', :slot => '0x00', :function => '0x2'
+    # Serial bus controller on 65:00.3
+    v.pci :domain => '0x0000', :bus => '0x65', :slot => '0x00', :function => '0x3'
+```
+This step needs to be done on the initial creation of the VM. The GPU would also need to be isolated from the host system.
 
 ## Troubleshooting
 

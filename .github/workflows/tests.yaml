@@ -1,0 +1,46 @@
+name: Vagrant Tests
+on:
+  workflow_dispatch:
+  pull_request:
+#    types: [ready_for_review]
+jobs:
+  test:
+    strategy:
+      fail-fast: False
+      matrix:
+        os: ['ubuntu-1804', 'ubuntu-2204', 'centos-7', 'centos-8']
+    name: ${{ matrix.os }}
+    runs-on: macos-12
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Cache Vagrant boxes
+        uses: actions/cache@v2
+        with:
+          path: ~/.vagrant.d/boxes
+          key: ${{ runner.os }}-vagrant-${{ matrix.os }}
+          restore-keys: |
+            ${{ runner.os }}-vagrant-${{ matrix.os }}
+
+      - name: Show Vagrant version
+        run: vagrant --version
+
+      - name: Run vagrant up
+        run: |
+          export VAGRANT_VAGRANTFILE=Vagrantfile.${{ matrix.os }}
+          vagrant up
+
+      - name: Check for errors
+        run: |
+          export VAGRANT_VAGRANTFILE=Vagrantfile.${{ matrix.os }}
+          vagrant up
+          vagrant ssh -c "grep 'errors occurred during installation' /var/log/install.log || true"
+          vagrant ssh -c "grep -q 'No errors detected' /var/log/install.log && \
+                          cylc version --long && \
+                          rose version && \
+                          fcm version && \
+                          svn --version && \
+                          gfortran --version | grep 4.8.5 || fcm test-battery t/fcm-make && \
+                          fcm test-battery t/fcm-conflicts && \
+                          which at"
